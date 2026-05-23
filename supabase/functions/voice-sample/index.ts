@@ -24,7 +24,7 @@ const voiceMap: Record<string, string> = {
 };
 
 const bucketId = "voice-samples";
-const ttsModel = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-2.5-flash-preview-tts";
+const ttsModel = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-3.1-flash-tts-preview";
 const sampleRate = 24000;
 
 async function generateGeminiTts(geminiKey: string, voiceName: string): Promise<Uint8Array> {
