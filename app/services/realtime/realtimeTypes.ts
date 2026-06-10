@@ -28,6 +28,7 @@ export type StartRealtimeVoiceOptions = {
   scenario?: Scenario | null;
   voiceId?: string;
   voiceGender?: "weiblich" | "männlich" | "neutral";
+  resumeTranscript?: string;
   onModeChange: (mode: RealtimeMode) => void;
   onEvent: (event: RealtimeEvent) => void;
 };

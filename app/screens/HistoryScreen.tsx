@@ -1,5 +1,6 @@
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { ArrowLeft } from "lucide-react-native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { ArrowLeft, ChevronRight } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -8,12 +9,13 @@ import { ScreenContainer } from "../components/ScreenContainer";
 import { colors } from "../constants/colors";
 import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
+import { RootStackParamList } from "../navigation/types";
 import { listHistory } from "../services/supabase/sessions";
 import { HistoryItem } from "../types/session";
 import { formatDate, formatDuration } from "../utils/formatDate";
 
 export function HistoryScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,11 +47,18 @@ export function HistoryScreen() {
       {!loading && !items.length ? <Text style={styles.empty}>Noch keine abgeschlossenen Trainings.</Text> : null}
 
       {items.map((item) => (
-        <AppCard key={item.id}>
-          <Text style={styles.cardTitle}>{formatDate(item.started_at)} · {item.scenario_title}</Text>
-          <Text style={styles.meta}>{item.score_total ?? "-"} / 100 · {formatDuration(item.duration_seconds)}</Text>
-          <Text style={styles.tip}>Tipp: {item.main_tip ?? "Mehr offene Fragen stellen."}</Text>
-        </AppCard>
+        <Pressable key={item.id} onPress={() => navigation.navigate("Analysis", { sessionId: item.id })}>
+          <AppCard>
+            <View style={styles.cardRow}>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{formatDate(item.started_at)} · {item.scenario_title}</Text>
+                <Text style={styles.meta}>{item.score_total ?? "-"} / 100 · {formatDuration(item.duration_seconds)}</Text>
+                <Text style={styles.tip}>Tipp: {item.main_tip ?? "Mehr offene Fragen stellen."}</Text>
+              </View>
+              <ChevronRight color={colors.muted} size={20} />
+            </View>
+          </AppCard>
+        </Pressable>
       ))}
     </ScreenContainer>
   );
@@ -83,6 +92,15 @@ const styles = StyleSheet.create({
   },
   empty: {
     color: colors.muted
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  cardBody: {
+    flex: 1,
+    gap: 4
   },
   cardTitle: {
     color: colors.primary,

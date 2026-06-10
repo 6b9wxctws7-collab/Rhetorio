@@ -1,5 +1,6 @@
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useCallback, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { AppButton } from "../components/AppButton";
@@ -12,26 +13,59 @@ import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
 import { useScenarios } from "../hooks/useScenarios";
 import { RootStackParamList } from "../navigation/types";
+import { getHomeStats, HomeStats } from "../services/supabase/sessions";
+
+function dayOfYear(date: Date) {
+  const start = new Date(date.getFullYear(), 0, 0);
+  return Math.floor((date.getTime() - start.getTime()) / 86400000);
+}
+
+function greetingForNow() {
+  const hour = new Date().getHours();
+  if (hour < 11) return "Guten Morgen";
+  if (hour < 18) return "Guten Tag";
+  return "Guten Abend";
+}
 
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const { scenarios } = useScenarios();
+  const [stats, setStats] = useState<HomeStats | null>(null);
   const quickStarts = scenarios.slice(0, 3);
-  const bestScore = 82;
+
+  // Deterministic daily rotation so every user sees the same exercise on a
+  // given day without any backend involvement.
+  const dailyScenario = useMemo(() => {
+    if (!scenarios.length) return null;
+    return scenarios[dayOfYear(new Date()) % scenarios.length];
+  }, [scenarios]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      getHomeStats(user.id)
+        .then(setStats)
+        .catch(() => setStats(null));
+    }, [user?.id])
+  );
 
   return (
     <ScreenContainer>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Guten Morgen</Text>
+        <Text style={styles.greeting}>{greetingForNow()}</Text>
         <Text style={styles.title}>Was möchtest du heute trainieren?</Text>
       </View>
 
       <AppCard>
         <Text style={styles.cardLabel}>Tagesübung</Text>
-        <Text style={styles.cardTitle}>Smalltalk auf einem Networking-Event</Text>
-        <Text style={styles.cardText}>3 Minuten, ein klarer Gesprächseinstieg und mindestens zwei offene Rückfragen.</Text>
-        <AppButton title="Jetzt üben" onPress={() => quickStarts[1] && navigation.navigate("Session", { scenarioId: quickStarts[1].id })} />
+        <Text style={styles.cardTitle}>{dailyScenario?.title ?? "Smalltalk auf einem Networking-Event"}</Text>
+        <Text style={styles.cardText}>{dailyScenario?.description ?? "Ein klarer Gesprächseinstieg und mindestens zwei offene Rückfragen."}</Text>
+        <AppButton
+          title="Jetzt üben"
+          onPress={() => dailyScenario && navigation.navigate("Session", { scenarioId: dailyScenario.id })}
+          disabled={!dailyScenario}
+        />
       </AppCard>
 
       <AppCard>
@@ -46,8 +80,8 @@ export function HomeScreen() {
       </AppCard>
 
       <View style={styles.stats}>
-        <StatCard label="Trainings diese Woche" value={profile?.free_sessions_used ?? 0} />
-        <StatCard label="Bester Score" value={bestScore} />
+        <StatCard label="Trainings diese Woche" value={stats?.sessionsThisWeek ?? 0} />
+        <StatCard label="Bester Score" value={stats?.bestScore ?? "–"} />
       </View>
 
       <View style={styles.section}>

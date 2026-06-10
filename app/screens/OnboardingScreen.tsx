@@ -7,8 +7,9 @@ import { ScreenContainer } from "../components/ScreenContainer";
 import { VoicePicker } from "../components/VoicePicker";
 import { colors } from "../constants/colors";
 import { typography } from "../constants/typography";
+import { trainingGoals } from "../constants/goals";
 import { AuthStackParamList } from "../navigation/types";
-import { setOnboardingSeen } from "../services/onboarding";
+import { setOnboardingSeen, setPendingTrainingGoal } from "../services/onboarding";
 import { defaultVoiceId, getVoicePreference, setVoicePreference } from "../services/voicePreference";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Onboarding">;
@@ -28,7 +29,7 @@ const slides = [
   }
 ];
 
-const goals = ["Smalltalk", "Bewerbung", "Gehaltsverhandlung", "Selbstbewusster sprechen", "Präsentationen", "Alltag & Dating"];
+const goals = trainingGoals;
 
 export function OnboardingScreen({ navigation }: Props) {
   const [index, setIndex] = useState(0);
@@ -49,6 +50,7 @@ export function OnboardingScreen({ navigation }: Props) {
   async function next() {
     if (lastSlide) {
       await setVoicePreference(voiceId);
+      if (selectedGoal) await setPendingTrainingGoal(selectedGoal);
       await setOnboardingSeen();
       navigation.replace("Auth");
     } else {

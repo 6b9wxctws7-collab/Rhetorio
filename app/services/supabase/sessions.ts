@@ -34,6 +34,42 @@ export async function completeSession(sessionId: string, startedAt: string) {
   return data as TrainingSession;
 }
 
+export type HomeStats = {
+  sessionsThisWeek: number;
+  bestScore: number | null;
+};
+
+export async function getHomeStats(userId: string): Promise<HomeStats> {
+  const startOfWeek = new Date();
+  const day = startOfWeek.getDay();
+  // getDay(): Sunday = 0 — shift so the week starts on Monday.
+  const daysSinceMonday = (day + 6) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - daysSinceMonday);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const [{ count }, { data: best }] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "active")
+      .gte("started_at", startOfWeek.toISOString()),
+    supabase
+      .from("sessions")
+      .select("score_total")
+      .eq("user_id", userId)
+      .not("score_total", "is", null)
+      .order("score_total", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ]);
+
+  return {
+    sessionsThisWeek: count ?? 0,
+    bestScore: best?.score_total ?? null
+  };
+}
+
 export async function listHistory(userId: string): Promise<HistoryItem[]> {
   const { data, error } = await supabase
     .from("sessions")

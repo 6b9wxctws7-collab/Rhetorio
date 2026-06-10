@@ -94,6 +94,13 @@ function defaultTitle(type: CustomTraining["type"]) {
 }
 
 export async function createCustomScenarioInDb(userId: string, custom: CustomTraining): Promise<Scenario> {
+  // Each custom training inserts a scenario row; sweep out the user's old
+  // custom scenarios that no session references so they don't pile up.
+  await supabase.rpc("cleanup_unused_custom_scenarios").then(
+    () => undefined,
+    () => undefined
+  );
+
   const synthetic = buildCustomScenario(custom);
   const { data, error } = await supabase
     .from("scenarios")

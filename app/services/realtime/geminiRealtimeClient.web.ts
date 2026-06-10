@@ -148,6 +148,9 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
     );
   };
 
+  let intentionalStop = false;
+  let setupCompleted = false;
+
   // Setup + open handler.
   ws.addEventListener("open", () => {
     ws.send(
@@ -163,7 +166,7 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
             }
           },
           systemInstruction: {
-            parts: [{ text: buildInstructions(options.scenario, ticket.voice_gender) }]
+            parts: [{ text: buildInstructions(options.scenario, ticket.voice_gender, options.resumeTranscript) }]
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
@@ -190,13 +193,17 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
 
     // First successful setup ack — request the AI to open in role.
     if (payload.setupComplete !== undefined) {
+      setupCompleted = true;
       options.onModeChange("connected");
       options.onEvent({ type: "session.ready" });
       ws.send(
         JSON.stringify({
           clientContent: {
             turns: [
-              { role: "user", parts: [{ text: buildOpeningInstruction(options.scenario, ticket.voice_gender) }] }
+              {
+                role: "user",
+                parts: [{ text: buildOpeningInstruction(options.scenario, ticket.voice_gender, options.resumeTranscript) }]
+              }
             ],
             turnComplete: true
           }
@@ -266,11 +273,24 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
   });
 
   ws.addEventListener("error", () => {
-    options.onModeChange("error");
-    options.onEvent({ type: "error", message: "WebSocket-Fehler" });
+    if (!intentionalStop) {
+      options.onModeChange("error");
+      options.onEvent({ type: "error", message: "WebSocket-Fehler" });
+    }
   });
   ws.addEventListener("close", () => {
-    options.onModeChange("idle");
+    if (intentionalStop) {
+      options.onModeChange("idle");
+      return;
+    }
+    // The Gemini token expires after 30 min and flaky mobile networks drop
+    // sockets. Signal the hook so it can reconnect with a fresh token
+    // instead of stranding the user on a dead session.
+    if (setupCompleted) {
+      options.onEvent({ type: "connection.lost" });
+    } else {
+      options.onModeChange("idle");
+    }
   });
 
   const connection: GeminiConnection = {
@@ -280,6 +300,7 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
     },
     stop: () => {
+      intentionalStop = true;
       try {
         recorder.disconnect();
         micSource.disconnect();
@@ -302,12 +323,16 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
   return connection;
 }
 
-function buildInstructions(scenario?: Scenario | null, gender?: "weiblich" | "männlich" | "neutral") {
+function buildInstructions(scenario?: Scenario | null, gender?: "weiblich" | "männlich" | "neutral", resumeTranscript?: string) {
   const genderHint = (() => {
     if (gender === "männlich") return "Deine Stimme klingt männlich. Wenn du dich vorstellst und das Szenario keinen Namen vorgibt, nutze einen männlichen Vornamen. Beziehe dich auf dich selbst nur in maskulinen Formen.";
     if (gender === "weiblich") return "Deine Stimme klingt weiblich. Wenn du dich vorstellst und das Szenario keinen Namen vorgibt, nutze einen weiblichen Vornamen. Beziehe dich auf dich selbst nur in femininen Formen.";
     return "Wenn du dich vorstellst und das Szenario keinen Namen vorgibt, wähle einen Vornamen, der zu deiner Stimme passt.";
   })();
+
+  const resumeHint = resumeTranscript
+    ? `\n\nWICHTIG: Die Verbindung wurde kurz unterbrochen, das Gespräch lief bereits. Bisheriger Verlauf:\n${resumeTranscript}\nSetze das Gespräch natürlich an der letzten Stelle fort. Begrüße den Nutzer NICHT erneut und stelle dich NICHT noch einmal vor.`
+    : "";
 
   if (!scenario) {
     return [
@@ -316,7 +341,7 @@ function buildInstructions(scenario?: Scenario | null, gender?: "weiblich" | "m�
       "Frage NICHT, worüber gesprochen werden soll — eröffne das Gespräch selbst passend zur Situation.",
       "Gib während des Gesprächs kein Coaching-Feedback und keine Meta-Kommentare.",
       genderHint
-    ].join(" ");
+    ].join(" ") + resumeHint;
   }
 
   return [
@@ -331,10 +356,16 @@ function buildInstructions(scenario?: Scenario | null, gender?: "weiblich" | "m�
     "- Bleib in der Rolle. Brich nicht aus, nenne dich nicht KI, gib keine Coaching-Tipps oder Meta-Kommentare während des Gesprächs.",
     "- Antworte kurz, menschlich und konversationell, mit gelegentlichen offenen Rückfragen.",
     "- Wenn der Nutzer kurz oder unsicher antwortet, hilf ihm sanft weiter, ohne aus der Rolle zu fallen."
-  ].join("\n");
+  ].join("\n") + (resumeTranscript
+    ? `\n\nWICHTIG: Die Verbindung wurde kurz unterbrochen, das Gespräch lief bereits. Bisheriger Verlauf:\n${resumeTranscript}\nSetze das Gespräch natürlich an der letzten Stelle fort. Begrüße den Nutzer NICHT erneut und stelle dich NICHT noch einmal vor.`
+    : "");
 }
 
-function buildOpeningInstruction(scenario?: Scenario | null, gender?: "weiblich" | "männlich" | "neutral") {
+function buildOpeningInstruction(scenario?: Scenario | null, gender?: "weiblich" | "männlich" | "neutral", resumeTranscript?: string) {
+  if (resumeTranscript) {
+    return "Die Verbindung wurde kurz unterbrochen. Setze das Gespräch jetzt mit einem kurzen, natürlichen Satz an der letzten Stelle fort — ohne Begrüßung, ohne Vorstellung, ohne Meta-Kommentar zur Unterbrechung.";
+  }
+
   const genderHint = (() => {
     if (gender === "männlich") return "Sprich mit männlicher Stimme und stelle dich gegebenenfalls mit einem männlichen Vornamen vor.";
     if (gender === "weiblich") return "Sprich mit weiblicher Stimme und stelle dich gegebenenfalls mit einem weiblichen Vornamen vor.";
