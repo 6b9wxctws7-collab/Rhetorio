@@ -32,12 +32,18 @@ Deno.serve(async (req) => {
     const { data: session } = await admin.from("sessions").select("id,user_id").eq("id", body.session_id).single();
     if (!session || session.user_id !== userData.user.id) throw new Error("Session nicht gefunden.");
 
+    const durationSeconds = Math.max(1, Math.round(Number(body.duration_seconds) || 1));
+    const { error: insertError } = await admin.from("voice_usage").insert({
+      user_id: userData.user.id,
+      session_id: body.session_id,
+      started_at: body.started_at,
+      ended_at: body.ended_at,
+      duration_seconds: durationSeconds
+    });
+    if (insertError) throw insertError;
+
     return Response.json(
-      {
-        ok: true,
-        session_id: body.session_id,
-        duration_seconds: Math.max(1, Math.round(Number(body.duration_seconds) || 1))
-      },
+      { ok: true, session_id: body.session_id, duration_seconds: durationSeconds },
       { headers: corsHeaders }
     );
   } catch (error) {

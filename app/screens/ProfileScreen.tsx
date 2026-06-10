@@ -9,16 +9,19 @@ import { AppCard } from "../components/AppCard";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { VoicePicker } from "../components/VoicePicker";
 import { colors } from "../constants/colors";
+import { trainingGoals } from "../constants/goals";
 import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
 import { RootStackParamList } from "../navigation/types";
 import { signOut } from "../services/supabase/auth";
+import { updateTrainingGoal } from "../services/supabase/profiles";
 import { defaultVoiceId, getVoicePreference, setVoicePreference } from "../services/voicePreference";
 
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [voiceId, setVoiceId] = useState<string>(defaultVoiceId);
+  const [savingGoal, setSavingGoal] = useState(false);
 
   useEffect(() => {
     getVoicePreference().then(setVoiceId);
@@ -27,6 +30,19 @@ export function ProfileScreen() {
   async function pickVoice(nextVoiceId: string) {
     setVoiceId(nextVoiceId);
     await setVoicePreference(nextVoiceId);
+  }
+
+  async function pickGoal(goal: string) {
+    if (!user?.id || savingGoal || goal === profile?.training_goal) return;
+    setSavingGoal(true);
+    try {
+      await updateTrainingGoal(user.id, goal);
+      await refreshProfile();
+    } catch (error) {
+      Alert.alert("Speichern fehlgeschlagen", error instanceof Error ? error.message : "Bitte versuche es erneut.");
+    } finally {
+      setSavingGoal(false);
+    }
   }
 
   async function logout() {
@@ -52,7 +68,16 @@ export function ProfileScreen() {
 
       <AppCard>
         <Text style={styles.label}>Trainingsziel</Text>
-        <Text style={styles.value}>{profile?.training_goal ?? "Selbstbewusster sprechen"}</Text>
+        <View style={styles.goalGrid}>
+          {trainingGoals.map((goal) => {
+            const selected = goal === (profile?.training_goal ?? "Selbstbewusster sprechen");
+            return (
+              <Pressable key={goal} onPress={() => pickGoal(goal)} style={[styles.goalChip, selected && styles.goalChipSelected]}>
+                <Text style={[styles.goalChipText, selected && styles.goalChipTextSelected]}>{goal}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </AppCard>
 
       <AppCard>
@@ -114,6 +139,31 @@ const styles = StyleSheet.create({
   value: {
     color: colors.primary,
     fontWeight: "700"
+  },
+  goalGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  goalChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  goalChipSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.softAccent
+  },
+  goalChipText: {
+    color: colors.text,
+    fontWeight: "600",
+    fontSize: 13
+  },
+  goalChipTextSelected: {
+    color: colors.accent
   },
   body: {
     color: colors.text,

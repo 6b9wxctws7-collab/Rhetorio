@@ -37,6 +37,10 @@ export function SessionScreen({ navigation, route }: Props) {
     if (conversation.error === "SESSION_LIMIT_REACHED") navigation.replace("Upgrade");
   }, [conversation.error, navigation]);
 
+  useEffect(() => {
+    if (voice.error === "VOICE_LIMIT_REACHED") navigation.replace("Upgrade");
+  }, [voice.error, navigation]);
+
   async function finish() {
     if (voice.connected || voice.mode === "connecting") await voice.stop();
     const analysis = await conversation.finish();
@@ -56,7 +60,10 @@ export function SessionScreen({ navigation, route }: Props) {
 
   const elapsed = `${Math.floor(conversation.elapsedSeconds / 60)}:${String(conversation.elapsedSeconds % 60).padStart(2, "0")}`;
   const sessionError = conversation.error && conversation.error !== "SESSION_LIMIT_REACHED" ? conversation.error : null;
-  const displayError = sessionError ?? voice.error ?? null;
+  const voiceError = voice.error === "VOICE_LIMIT_REACHED"
+    ? "Dein monatliches Voice-Kontingent ist aufgebraucht."
+    : voice.error;
+  const displayError = sessionError ?? voiceError ?? null;
 
   return (
     <ScreenContainer scroll={false}>

@@ -1,7 +1,8 @@
 import { Session, User } from "@supabase/supabase-js";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
-import { ensureProfile, getProfile } from "../services/supabase/profiles";
+import { ensureProfile, getProfile, updateTrainingGoal } from "../services/supabase/profiles";
+import { consumePendingTrainingGoal } from "../services/onboarding";
 import { supabase } from "../services/supabase/client";
 import { Profile } from "../types/user";
 
@@ -70,13 +71,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
-    ensureProfile(userId, session?.user?.email ?? null)
-      .then((loaded) => {
+    (async () => {
+      try {
+        let loaded = await ensureProfile(userId, session?.user?.email ?? null);
+
+        // Apply the training goal picked during onboarding (before signup).
+        const pendingGoal = await consumePendingTrainingGoal();
+        if (pendingGoal && pendingGoal !== loaded.training_goal) {
+          try {
+            await updateTrainingGoal(userId, pendingGoal);
+            loaded = { ...loaded, training_goal: pendingGoal };
+          } catch {
+            // Goal sync is best-effort.
+          }
+        }
+
         if (!cancelled) setProfile(loaded);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setProfile(null);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;

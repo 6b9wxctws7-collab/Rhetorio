@@ -37,6 +37,34 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData.user) throw new Error("Nicht authentifiziert.");
 
+    // Cost guard: cap voice minutes per calendar month, enforced server-side
+    // so a stuck tab or a curious user cannot burn unlimited Gemini minutes.
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(supabaseUrl, serviceKey);
+    const freeLimitMinutes = Number(Deno.env.get("VOICE_FREE_MONTHLY_MINUTES") ?? 10);
+    const premiumLimitMinutes = Number(Deno.env.get("VOICE_PREMIUM_MONTHLY_MINUTES") ?? 180);
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("subscription_status")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+    const limitMinutes = profile?.subscription_status === "premium" ? premiumLimitMinutes : freeLimitMinutes;
+
+    const startOfMonth = new Date();
+    startOfMonth.setUTCDate(1);
+    startOfMonth.setUTCHours(0, 0, 0, 0);
+    const { data: usageRows } = await admin
+      .from("voice_usage")
+      .select("duration_seconds")
+      .eq("user_id", userData.user.id)
+      .gte("started_at", startOfMonth.toISOString());
+    const usedSeconds = (usageRows ?? []).reduce((sum, row) => sum + (row.duration_seconds ?? 0), 0);
+
+    if (usedSeconds >= limitMinutes * 60) {
+      return Response.json({ error: "VOICE_LIMIT_REACHED" }, { status: 403, headers: corsHeaders });
+    }
+
     let voiceId = "marin";
     try {
       if (req.headers.get("content-type")?.includes("application/json")) {
