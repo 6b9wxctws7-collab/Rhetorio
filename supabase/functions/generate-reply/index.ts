@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash";
+    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
 
     if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 

@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     // Die Analyse ist der Wert-Moment der App — sie darf ein stärkeres Modell
     // nutzen als das Rollenspiel. Fällt auf GEMINI_MODEL zurück.
     const model =
-      Deno.env.get("GEMINI_ANALYSIS_MODEL") ?? Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash";
+      Deno.env.get("GEMINI_ANALYSIS_MODEL") ?? Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
 
     if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 
