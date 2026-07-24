@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
 
   try {
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash";
+    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash-lite";
     if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 
     const body = (await req.json()) as RequestBody;
