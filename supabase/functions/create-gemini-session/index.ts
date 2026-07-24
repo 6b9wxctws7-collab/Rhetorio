@@ -20,6 +20,58 @@ const voiceMap: Record<string, { gemini: string; gender: "weiblich" | "männlich
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
+// Welche Live-Modelle ein API-Key freigeschaltet hat, unterscheidet sich je
+// nach Account und aendert sich mit jedem Google-Release. Statt einen Namen
+// fest zu verdrahten (und bei "model not found" in einem stummen Verbindungs-
+// abbruch zu landen) fragen wir die Modell-Liste des Keys ab und nehmen das
+// erste Modell, das bidiGenerateContent — also Live — wirklich unterstuetzt.
+const livePreference = [
+  "gemini-2.5-flash-native-audio-preview",
+  "gemini-2.5-flash-preview-native-audio-dialog",
+  "gemini-2.0-flash-live-001",
+  "gemini-live-2.5-flash-preview"
+];
+
+let cachedLiveModel: { value: string; expiresAt: number } | null = null;
+
+async function resolveLiveModel(geminiKey: string): Promise<string> {
+  const override = Deno.env.get("GEMINI_REALTIME_MODEL");
+  if (override) return override;
+  if (cachedLiveModel && cachedLiveModel.expiresAt > Date.now()) return cachedLiveModel.value;
+
+  const names: string[] = [];
+  let pageToken = "";
+  do {
+    const url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
+    url.searchParams.set("key", geminiKey);
+    url.searchParams.set("pageSize", "200");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Modell-Liste konnte nicht geladen werden: ${await response.text()}`);
+    const data = await response.json();
+    for (const model of data.models ?? []) {
+      const methods: string[] = model.supportedGenerationMethods ?? [];
+      if (methods.some((method) => method.toLowerCase() === "bidigeneratecontent")) {
+        names.push(String(model.name ?? "").replace(/^models\//, ""));
+      }
+    }
+    pageToken = data.nextPageToken ?? "";
+  } while (pageToken);
+
+  if (!names.length) {
+    throw new Error(
+      "LIVE_NOT_AVAILABLE: Dieser Gemini-API-Key hat kein Live-Modell (Sprachmodus) freigeschaltet. " +
+        "In Google AI Studio unter 'Billing' ein kostenpflichtiges Projekt mit der Live API verknuepfen " +
+        "oder GEMINI_REALTIME_MODEL als Secret setzen."
+    );
+  }
+
+  const chosen = livePreference.find((candidate) => names.includes(candidate)) ?? names[0];
+  cachedLiveModel = { value: chosen, expiresAt: Date.now() + 10 * 60 * 1000 };
+  return chosen;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -28,7 +80,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    const model = Deno.env.get("GEMINI_REALTIME_MODEL") ?? "gemini-3.1-flash-live-preview";
     if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -75,6 +126,7 @@ Deno.serve(async (req) => {
       // body is optional
     }
     const mapped = voiceMap[voiceId];
+    const model = await resolveLiveModel(geminiKey);
 
     const now = Date.now();
     const expireTime = new Date(now + 30 * 60 * 1000).toISOString();

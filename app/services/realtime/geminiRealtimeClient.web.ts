@@ -151,6 +151,23 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
   let intentionalStop = false;
   let setupCompleted = false;
 
+  // Wenn Gemini das Setup ablehnt (z. B. unbekanntes Live-Modell), kommt kein
+  // Fehler-Frame, sondern ein stiller Close. Ohne diesen Timeout haengt die UI
+  // dann dauerhaft auf "Verbinde ...".
+  const connectTimeoutId = setTimeout(() => {
+    if (setupCompleted || intentionalStop) return;
+    options.onModeChange("error");
+    options.onEvent({
+      type: "error",
+      message: "Zeitüberschreitung beim Verbinden mit dem Sprachmodus. Bitte erneut versuchen."
+    });
+    try {
+      ws.close();
+    } catch {
+      // ignore
+    }
+  }, 20000);
+
   // Setup + open handler.
   ws.addEventListener("open", () => {
     ws.send(
@@ -191,9 +208,22 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
     }
     if (!payload) return;
 
+    // Gemini schickt Setup-Fehler als eigenen Frame — den sonst niemand liest.
+    const errorFrame = (payload as { error?: { message?: string; status?: string } }).error;
+    if (errorFrame) {
+      clearTimeout(connectTimeoutId);
+      options.onModeChange("error");
+      options.onEvent({
+        type: "error",
+        message: errorFrame.message ?? errorFrame.status ?? "Gemini hat die Sprachsitzung abgelehnt."
+      });
+      return;
+    }
+
     // First successful setup ack — request the AI to open in role.
     if (payload.setupComplete !== undefined) {
       setupCompleted = true;
+      clearTimeout(connectTimeoutId);
       options.onModeChange("connected");
       options.onEvent({ type: "session.ready" });
       ws.send(
@@ -278,7 +308,8 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
       options.onEvent({ type: "error", message: "WebSocket-Fehler" });
     }
   });
-  ws.addEventListener("close", () => {
+  ws.addEventListener("close", (event) => {
+    clearTimeout(connectTimeoutId);
     if (intentionalStop) {
       options.onModeChange("idle");
       return;
@@ -288,9 +319,18 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
     // instead of stranding the user on a dead session.
     if (setupCompleted) {
       options.onEvent({ type: "connection.lost" });
-    } else {
-      options.onModeChange("idle");
+      return;
     }
+    // Close vor dem Setup heisst: Gemini hat die Sitzung abgelehnt. Der Grund
+    // steht nur im Close-Frame — den zeigen wir statt still auf "idle" zu gehen.
+    const reason = (event.reason ?? "").trim();
+    options.onModeChange("error");
+    options.onEvent({
+      type: "error",
+      message: reason
+        ? `Sprachmodus abgelehnt (${event.code}): ${reason}`
+        : `Sprachmodus abgelehnt (Code ${event.code}). Prüfe, ob der Gemini-Key die Live API freigeschaltet hat.`
+    });
   });
 
   const connection: GeminiConnection = {
@@ -301,6 +341,7 @@ export async function startGeminiVoice(options: StartRealtimeVoiceOptions): Prom
     },
     stop: () => {
       intentionalStop = true;
+      clearTimeout(connectTimeoutId);
       try {
         recorder.disconnect();
         micSource.disconnect();

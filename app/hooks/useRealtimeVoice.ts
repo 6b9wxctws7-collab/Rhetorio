@@ -55,6 +55,16 @@ export function useRealtimeVoice({ sessionId, scenario, voiceId }: Options = {})
 
     if (event.type === "session.ready") {
       reconnectAttemptsRef.current = 0;
+      setError(null);
+      return;
+    }
+
+    // Fehler aus dem Transport (abgelehntes Setup, Timeout) sichtbar machen —
+    // sonst bleibt der Nutzer ohne Hinweis auf "Verbinde ..." haengen.
+    if (event.type === "error") {
+      const message = typeof event.message === "string" ? event.message : "";
+      setError(message || "Der Sprachmodus konnte nicht gestartet werden.");
+      setMode("error");
       return;
     }
 

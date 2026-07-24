@@ -41,9 +41,14 @@ supabase db push
 # (Gemini-Key aus Google AI Studio, https://aistudio.google.com/apikey)
 supabase secrets set GEMINI_API_KEY=dein-gemini-key
 
-# Optional: stärkeres Modell nur für die Session-Analyse
-# (Rollenspiel bleibt auf dem günstigen Standard-Modell)
-supabase secrets set GEMINI_ANALYSIS_MODEL=gemini-3.1-pro
+# Optional: Modelle übersteuern (Standard: Rollenspiel auf
+# gemini-3.5-flash-lite, Analyse auf gemini-3.6-flash)
+supabase secrets set GEMINI_MODEL=gemini-3.5-flash-lite
+supabase secrets set GEMINI_ANALYSIS_MODEL=gemini-3.6-flash
+
+# Optional: Live-Modell für den Sprachmodus festlegen. Ohne dieses Secret
+# sucht die App automatisch das passende Live-Modell für deinen Key.
+supabase secrets set GEMINI_REALTIME_MODEL=gemini-2.0-flash-live-001
 
 # Funktionen hochladen
 supabase functions deploy generate-reply
