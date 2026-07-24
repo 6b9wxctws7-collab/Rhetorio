@@ -1,4 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { AppButton } from "../components/AppButton";
@@ -8,7 +9,10 @@ import { ScreenContainer } from "../components/ScreenContainer";
 import { colors } from "../constants/colors";
 import { typography } from "../constants/typography";
 import { useAnalysis } from "../hooks/useAnalysis";
+import { useAuth } from "../hooks/useAuth";
 import { RootStackParamList } from "../navigation/types";
+import { canStartSession } from "../services/supabase/profiles";
+import { getPreviousScore } from "../services/supabase/sessions";
 import { scoreRows } from "../utils/calculateScores";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Analysis">;
@@ -16,6 +20,21 @@ type Props = NativeStackScreenProps<RootStackParamList, "Analysis">;
 export function AnalysisScreen({ navigation, route }: Props) {
   const { analysis: loadedAnalysis, loading, error } = useAnalysis(route.params.sessionId);
   const analysis = route.params.analysis ?? loadedAnalysis;
+  const { user } = useAuth();
+  const [previousScore, setPreviousScore] = useState<number | null>(null);
+  const [freeInfo, setFreeInfo] = useState<{ used: number; limit: number } | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    getPreviousScore(user.id, route.params.sessionId)
+      .then(setPreviousScore)
+      .catch(() => setPreviousScore(null));
+    canStartSession(user.id)
+      .then((info) => setFreeInfo(info.status === "premium" ? null : { used: info.used, limit: info.limit }))
+      .catch(() => setFreeInfo(null));
+  }, [user?.id, route.params.sessionId]);
+
+  const delta = analysis && previousScore != null ? analysis.score_total - previousScore : null;
 
   if (!analysis) {
     return (
@@ -35,6 +54,12 @@ export function AnalysisScreen({ navigation, route }: Props) {
       </View>
 
       <ScoreCircle score={analysis.score_total} />
+
+      {delta != null && delta !== 0 && (
+        <Text style={[styles.delta, { color: delta > 0 ? colors.success : colors.warning }]}>
+          {delta > 0 ? `▲ +${delta} seit deiner letzten Session` : `▼ ${delta} seit deiner letzten Session`}
+        </Text>
+      )}
 
       <AppCard>
         <Text style={styles.cardTitle}>Kurzfazit</Text>
@@ -81,6 +106,22 @@ export function AnalysisScreen({ navigation, route }: Props) {
         <Text style={styles.body}>{analysis.next_exercise}</Text>
       </AppCard>
 
+      {/* Soft-Paywall am Wert-Moment: Free-Nutzer sehen direkt nach der
+          Analyse, wie viele Gratis-Sessions übrig sind — mit Upgrade-Pfad. */}
+      {freeInfo && (
+        <AppCard>
+          <Text style={styles.cardTitle}>
+            {Math.max(0, freeInfo.limit - freeInfo.used) > 0
+              ? `Noch ${Math.max(0, freeInfo.limit - freeInfo.used)} von ${freeInfo.limit} Gratis-Sessions diesen Monat`
+              : "Deine Gratis-Sessions für diesen Monat sind aufgebraucht"}
+          </Text>
+          <Text style={styles.body}>
+            Mit Premium trainierst du ohne Limit und behältst deinen Fortschritt im Blick.
+          </Text>
+          <AppButton title="Premium ansehen" onPress={() => navigation.navigate("Upgrade")} variant="secondary" />
+        </AppCard>
+      )}
+
       <AppButton title="Weiter trainieren" onPress={() => navigation.navigate("MainTabs")} />
     </ScreenContainer>
   );
@@ -100,6 +141,10 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: colors.muted
+  },
+  delta: {
+    textAlign: "center",
+    fontWeight: "800"
   },
   cardTitle: {
     color: colors.primary,

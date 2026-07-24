@@ -41,6 +41,10 @@ supabase db push
 # (Gemini-Key aus Google AI Studio, https://aistudio.google.com/apikey)
 supabase secrets set GEMINI_API_KEY=dein-gemini-key
 
+# Optional: stärkeres Modell nur für die Session-Analyse
+# (Rollenspiel bleibt auf dem günstigen Standard-Modell)
+supabase secrets set GEMINI_ANALYSIS_MODEL=gemini-3.1-pro
+
 # Funktionen hochladen
 supabase functions deploy generate-reply
 supabase functions deploy analyze-session

@@ -4,6 +4,10 @@ type GenerateReplyBody = {
   session_id: string;
   scenario_id: string;
   latest_user_message: string;
+  // "hint": Coaching-Vorschlag, was der Trainee als Nächstes sagen könnte.
+  // Wird NICHT in der Gesprächshistorie gespeichert, damit die Analyse
+  // die eigene Leistung des Nutzers bewertet.
+  mode?: "reply" | "hint";
 };
 
 const corsHeaders = {
@@ -55,12 +59,29 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(24);
 
-    const systemInstruction = `${scenario.system_prompt}\nSzenario: ${scenario.title}\nAntworte mit maximal 2-4 kurzen Saetzen. Kein Coaching-Feedback.`;
+    const isHint = body.mode === "hint";
+
+    const systemInstruction = isHint
+      ? `Du bist ein deutschsprachiger Kommunikationscoach. Der Nutzer steckt in einem Rollenspiel-Training fest ("${scenario.title}") und weiss nicht, was er sagen soll. Schlage ihm EINEN konkreten, natuerlichen Satz vor, den er als Naechstes sagen koennte, plus einen kurzen Grund (max. 1 Satz). Format: erst der Vorschlag in Anfuehrungszeichen, dann der Grund. Kein weiteres Vorwort.`
+      : `${scenario.system_prompt}\nSzenario: ${scenario.title}\nAntworte mit maximal 2-4 kurzen Saetzen. Kein Coaching-Feedback.`;
 
     const contents = (messages ?? []).map((message) => ({
       role: message.role === "assistant" ? "model" : "user",
       parts: [{ text: message.content }]
     }));
+
+    if (isHint) {
+      // Beim Hint braucht Gemini eine abschliessende User-Anfrage; die
+      // bisherige Konversation dient nur als Kontext.
+      contents.push({
+        role: "user",
+        parts: [
+          {
+            text: `Kontext des Trainings — Situation: ${scenario.title}. Ich weiss gerade nicht weiter. Was koennte ich als Naechstes sagen?`
+          }
+        ]
+      });
+    }
 
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
@@ -86,11 +107,15 @@ Deno.serve(async (req) => {
       .trim();
     if (!replyText) throw new Error("Gemini hat keine Antwort geliefert.");
 
-    const { error: insertError } = await admin
-      .from("messages")
-      .insert({ session_id: body.session_id, role: "assistant", content: replyText });
+    // Hints werden bewusst nicht gespeichert — sie gehoeren nicht zur
+    // bewertbaren Gespraechsleistung des Nutzers.
+    if (!isHint) {
+      const { error: insertError } = await admin
+        .from("messages")
+        .insert({ session_id: body.session_id, role: "assistant", content: replyText });
 
-    if (insertError) throw insertError;
+      if (insertError) throw insertError;
+    }
 
     return Response.json({ reply_text: replyText }, { headers: corsHeaders });
   } catch (error) {

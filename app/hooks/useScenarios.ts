@@ -17,9 +17,13 @@ export function useScenarios() {
 
   const grouped = useMemo(
     () => ({
-      "Alltag & Smalltalk": scenarios.filter((item) => item.category === "Smalltalk"),
+      "Alltag & Smalltalk": scenarios.filter((item) => ["Smalltalk", "Alltag"].includes(item.category)),
       Karriere: scenarios.filter((item) => ["Bewerbung", "Gehalt", "Karriere"].includes(item.category)),
-      "Schwierige Gespräche": scenarios.filter((item) => item.category === "Gehalt")
+      "Konflikt & Schwierige Gespräche": scenarios.filter((item) =>
+        ["Konflikt", "Schwierige Gespräche"].includes(item.category)
+      ),
+      Führung: scenarios.filter((item) => item.category === "Führung"),
+      "Dating & Beziehungen": scenarios.filter((item) => item.category === "Dating")
     }),
     [scenarios]
   );

@@ -13,7 +13,7 @@ import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
 import { useScenarios } from "../hooks/useScenarios";
 import { RootStackParamList } from "../navigation/types";
-import { getHomeStats, HomeStats } from "../services/supabase/sessions";
+import { getHomeStats, getStreak, HomeStats } from "../services/supabase/sessions";
 
 function dayOfYear(date: Date) {
   const start = new Date(date.getFullYear(), 0, 0);
@@ -32,7 +32,9 @@ export function HomeScreen() {
   const { user } = useAuth();
   const { scenarios } = useScenarios();
   const [stats, setStats] = useState<HomeStats | null>(null);
+  const [streak, setStreak] = useState(0);
   const quickStarts = scenarios.slice(0, 3);
+  const hasTrained = (stats?.sessionsThisWeek ?? 0) > 0 || stats?.bestScore != null;
 
   // Deterministic daily rotation so every user sees the same exercise on a
   // given day without any backend involvement.
@@ -47,6 +49,9 @@ export function HomeScreen() {
       getHomeStats(user.id)
         .then(setStats)
         .catch(() => setStats(null));
+      getStreak(user.id)
+        .then(setStreak)
+        .catch(() => setStreak(0));
     }, [user?.id])
   );
 
@@ -79,10 +84,23 @@ export function HomeScreen() {
         />
       </AppCard>
 
-      <View style={styles.stats}>
-        <StatCard label="Trainings diese Woche" value={stats?.sessionsThisWeek ?? 0} />
-        <StatCard label="Bester Score" value={stats?.bestScore ?? "–"} />
-      </View>
+      {/* Neue Nutzer sehen einen motivierenden Einstieg statt "0 / –". */}
+      {hasTrained ? (
+        <View style={styles.stats}>
+          <StatCard label="Tage-Streak" value={streak > 0 ? `${streak} 🔥` : "–"} />
+          <StatCard label="Trainings diese Woche" value={stats?.sessionsThisWeek ?? 0} />
+          <StatCard label="Bester Score" value={stats?.bestScore ?? "–"} />
+        </View>
+      ) : (
+        <AppCard>
+          <Text style={styles.cardLabel}>Dein Start</Text>
+          <Text style={styles.cardTitle}>In 3 Minuten zu deinem ersten Score</Text>
+          <Text style={styles.cardText}>
+            Starte eine kurze Session — Rheto analysiert dein Gespräch und zeigt dir sofort, was schon stark ist und
+            was du verbessern kannst.
+          </Text>
+        </AppCard>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Schnellstart</Text>

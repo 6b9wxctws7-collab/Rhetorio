@@ -11,7 +11,15 @@ import { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Upgrade">;
 
-const benefits = ["Mehr Sessions", "Alle Szenarien", "Detaillierte Analysen", "Bessere Formulierungen", "Fortschrittsverlauf", "Später Live Voice"];
+// Nutzen-orientierte Benefits: nicht was Premium *hat*, sondern was der
+// Nutzer damit *erreicht*.
+const benefits = [
+  "Unbegrenzt üben — auch kurz vor dem wichtigen Gespräch",
+  "Alle 30+ Szenarien, inkl. Gehalt, Führung & Konflikt",
+  "Detaillierte Analysen mit besseren Formulierungen",
+  "Dein Fortschritt über Wochen sichtbar",
+  "Live-Voice-Training (im Browser)"
+];
 
 export function UpgradeScreen({ navigation }: Props) {
   return (
@@ -22,7 +30,10 @@ export function UpgradeScreen({ navigation }: Props) {
 
       <View style={styles.header}>
         <Text style={styles.kicker}>RhetoCoach Premium</Text>
-        <Text style={styles.title}>Trainiere ohne Limit und verbessere deine Gespräche schneller.</Text>
+        <Text style={styles.title}>Werde souverän in den Gesprächen, die zählen.</Text>
+        <Text style={styles.subtitle}>
+          Eine einzige gelungene Gehaltsverhandlung zahlt Premium für Jahre.
+        </Text>
       </View>
 
       <AppCard>
@@ -36,17 +47,22 @@ export function UpgradeScreen({ navigation }: Props) {
 
       <View style={styles.prices}>
         <AppCard>
-          <Text style={styles.price}>9,99 €/Monat</Text>
-          <Text style={styles.muted}>Flexibel monatlich</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>Beliebt — 33% günstiger</Text>
+          </View>
+          <Text style={styles.price}>79,99 €/Jahr</Text>
+          <Text style={styles.muted}>Das sind nur 0,22 € pro Tag</Text>
         </AppCard>
         <AppCard>
-          <Text style={styles.price}>79,99 €/Jahr</Text>
-          <Text style={styles.muted}>Besserer Jahrespreis</Text>
+          <Text style={styles.price}>9,99 €/Monat</Text>
+          <Text style={styles.muted}>Monatlich kündbar</Text>
         </AppCard>
       </View>
 
-      <AppButton title="Premium vormerken" onPress={() => navigation.goBack()} />
-      <Text style={styles.notice}>Noch kein echtes Payment im MVP. RevenueCat ist für den nächsten Schritt vorgesehen.</Text>
+      <AppButton title="Premium freischalten" onPress={() => navigation.goBack()} />
+      <Text style={styles.notice}>
+        Hinweis: Die Zahlung ist noch nicht angebunden (RevenueCat folgt). Der Kauf ist aktuell nicht möglich.
+      </Text>
     </ScreenContainer>
   );
 }
@@ -70,6 +86,22 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     color: colors.primary
+  },
+  subtitle: {
+    color: colors.muted,
+    lineHeight: 21
+  },
+  badge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.softAccent,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+  badgeText: {
+    color: colors.accent,
+    fontWeight: "800",
+    fontSize: 12
   },
   benefit: {
     flexDirection: "row",

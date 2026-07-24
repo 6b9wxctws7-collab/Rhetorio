@@ -2,9 +2,13 @@ export type ScenarioDifficulty = "Leicht" | "Mittel" | "Schwer";
 
 export type ScenarioCategory =
   | "Smalltalk"
+  | "Alltag"
   | "Bewerbung"
   | "Gehalt"
   | "Karriere"
+  | "Konflikt"
+  | "Führung"
+  | "Dating"
   | "Schwierige Gespräche";
 
 export type Scenario = {
