@@ -1,129 +1,108 @@
-# RhetoCoach MVP
+# RhetoCoach
 
-RhetoCoach ist eine mobile Expo React Native App fuer deutschsprachiges KI-Gespraechstraining mit Supabase Auth, Postgres und Edge Functions.
+RhetoCoach ist eine App zum **Üben von Gesprächen mit einer KI** – auf Deutsch.
+Man wählt ein Szenario, führt ein Rollenspiel per Text (oder Stimme im Browser),
+und bekommt danach eine Auswertung. Läuft als Handy-App (iOS/Android) und als
+Web-App im Browser.
 
-## Setup
+**Technik dahinter:** Expo / React Native (App), Supabase (Login + Datenbank),
+OpenAI (die KI-Antworten). Vercel hostet die Web-Version.
 
-1. Dependencies installieren:
-   ```bash
-   npm install
-   ```
+---
 
-2. `.env` anlegen:
-   ```bash
-   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   ```
+## Was du brauchst, um die App selbst zu betreiben
 
-3. Supabase Secrets fuer Edge Functions setzen:
-   ```bash
+Du brauchst drei eigene, kostenlose/kostenpflichtige Konten:
+
+1. **Supabase** – Login & Datenbank ([supabase.com](https://supabase.com))
+2. **OpenAI** – für die KI-Antworten ([platform.openai.com](https://platform.openai.com)) – hier fällt Nutzung nach Verbrauch an
+3. **Vercel** – um die Web-Version online zu stellen ([vercel.com](https://vercel.com)) – optional
+
+> Die Werte unten (`https://dein-projekt.supabase.co`, `dein-anon-key`, `sk-...`)
+> sind **Platzhalter**. Du ersetzt sie durch deine eigenen aus den jeweiligen Dashboards.
+
+---
+
+## Schritt 1: Supabase einrichten
+
+1. Neues Projekt auf [supabase.com](https://supabase.com) anlegen.
+2. Unter **Project Settings → API** findest du zwei Werte:
+   - `Project URL`
+   - `anon public` Key
+3. Diese kommen gleich in die `.env`-Datei (Schritt 2).
+
+**Datenbank aufsetzen und KI-Funktionen ("Edge Functions") hochladen:**
+
+```bash
+# Datenbank-Struktur anlegen
+supabase db push
+
+# Geheime Schlüssel für die Server-Funktionen hinterlegen
 supabase secrets set OPENAI_API_KEY=sk-...
 supabase secrets set OPENAI_MODEL=gpt-4o-mini
 supabase secrets set OPENAI_REALTIME_MODEL=gpt-realtime
 supabase secrets set OPENAI_REALTIME_VOICE=marin
-   ```
 
-4. Migration ausfuehren:
-   ```bash
-   supabase db push
-   ```
-
-5. Edge Functions deployen:
-   ```bash
-   supabase functions deploy generate-reply
-   supabase functions deploy analyze-session
+# Funktionen hochladen
+supabase functions deploy generate-reply
+supabase functions deploy analyze-session
 supabase functions deploy create-realtime-session
 supabase functions deploy record-voice-usage
-   ```
-
-6. App lokal starten:
-   ```bash
-   npm run start
-   ```
-
-## Vercel Deployment
-
-Diese App ist eine Expo React Native App. Vercel kann die Web-Version hosten, nicht die native iOS/Android-App.
-
-1. Repository mit Vercel verbinden.
-2. In Vercel unter Project Settings -> Environment Variables setzen:
-   ```bash
-   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   ```
-3. Build Command:
-   ```bash
-   npm run build:web
-   ```
-4. Output Directory:
-   ```bash
-   dist
-   ```
-
-Die Datei `vercel.json` setzt diese Werte bereits fuer das Projekt.
-
-## Realtime Voice im Browser testen
-
-Live Voice ist im MVP zuerst fuer Expo Web / Vercel aktiviert. Der Web-Flow nutzt Browser APIs:
-
-- `navigator.mediaDevices.getUserMedia`
-- `RTCPeerConnection`
-- `RTCDataChannel`
-- `HTMLAudioElement`
-
-Lokal im Browser testen:
-
-```bash
-npm run web
 ```
 
-Dann eine Session starten und im Session-Screen den Voice-Button antippen. Der Browser fragt nach Mikrofonzugriff. Native iOS/Android bleibt vorbereitet, nutzt aber noch keinen produktiven `react-native-webrtc` Flow.
+**Login-Weiterleitungen** (damit E-Mail-Bestätigungslinks zur App zurückführen):
+Supabase Dashboard → **Authentication → URL Configuration**:
 
-## Supabase verbinden
+- Site URL: `https://deine-app.vercel.app`
+- Redirect URLs: `https://deine-app.vercel.app/**`
 
-1. Neues Supabase-Projekt erstellen.
-2. `EXPO_PUBLIC_SUPABASE_URL` und `EXPO_PUBLIC_SUPABASE_ANON_KEY` aus Project Settings -> API kopieren.
-3. Lokal in `.env` eintragen.
-4. Migration ausfuehren:
+---
+
+## Schritt 2: App lokal starten
+
+1. Programme installieren:
    ```bash
-   supabase db push
+   npm install
    ```
-5. Edge Function Secrets setzen:
+2. Datei `.env` im Projektordner anlegen und deine Supabase-Werte eintragen:
    ```bash
-   supabase secrets set OPENAI_API_KEY=sk-...
-   supabase secrets set OPENAI_MODEL=gpt-4o-mini
-   supabase secrets set OPENAI_REALTIME_MODEL=gpt-realtime
-   supabase secrets set OPENAI_REALTIME_VOICE=marin
+   EXPO_PUBLIC_SUPABASE_URL=https://dein-projekt.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=dein-anon-key
    ```
-6. Functions deployen:
+3. Starten:
    ```bash
-   supabase functions deploy generate-reply
-   supabase functions deploy analyze-session
-   supabase functions deploy create-realtime-session
-   supabase functions deploy record-voice-usage
-   ```
-
-## Supabase Auth Redirects
-
-Damit E-Mail-Bestaetigungslinks zur Vercel-App zurueckfuehren:
-
-1. Supabase Dashboard -> Authentication -> URL Configuration.
-2. Site URL setzen:
-   ```bash
-   https://rhetorio.vercel.app
-   ```
-3. Redirect URLs hinzufuegen:
-   ```bash
-   https://rhetorio.vercel.app/**
+   npm run start   # Handy-App (Expo)
+   npm run web     # im Browser (inkl. Sprach-Test)
    ```
 
-## MVP-Fokus
+> Hinweis: Der `anon`-Key ist **absichtlich öffentlich** – er landet ohnehin im
+> Browser. Der Schutz der Daten läuft über die Datenbank-Regeln (Row Level
+> Security), die beim `supabase db push` automatisch mitkommen. Die *echten*
+> Geheimnisse (OpenAI-Key) stehen nur in den Supabase-Secrets, nie im Code.
 
-- Textbasiertes KI-Roleplay
+---
+
+## Schritt 3: Web-Version online stellen (Vercel, optional)
+
+1. Repository mit [Vercel](https://vercel.com) verbinden.
+2. In Vercel unter **Project Settings → Environment Variables** eintragen:
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=https://dein-projekt.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=dein-anon-key
+   ```
+3. Build-Einstellungen (stehen schon in `vercel.json`):
+   - Build Command: `npm run build:web`
+   - Output Directory: `dist`
+
+---
+
+## Was die App aktuell kann (MVP)
+
+- Text-Rollenspiel mit der KI
 - Szenario-Auswahl
-- Session- und Message-Speicherung
-- Analyse nach Session
-- Verlauf
-- Supabase Auth
-- Dummy Premium Status und Limits
-- Realtime Voice vorbereitet, aber bewusst noch Stub
+- Speicherung von Sessions und Nachrichten
+- Auswertung nach jeder Session
+- Verlauf früherer Sessions
+- Login über Supabase
+- Premium-Status und Limits (noch als Platzhalter)
+- Sprach-Modus im Browser vorbereitet (nativ auf dem Handy noch nicht aktiv)
