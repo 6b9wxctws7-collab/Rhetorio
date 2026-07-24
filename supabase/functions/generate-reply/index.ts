@@ -20,10 +20,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openAiKey = Deno.env.get("OPENAI_API_KEY");
-    const model = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash";
 
-    if (!openAiKey) throw new Error("OPENAI_API_KEY ist nicht gesetzt.");
+    if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -55,35 +55,36 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(24);
 
-    const chatMessages = [
+    const systemInstruction = `${scenario.system_prompt}\nSzenario: ${scenario.title}\nAntworte mit maximal 2-4 kurzen Saetzen. Kein Coaching-Feedback.`;
+
+    const contents = (messages ?? []).map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }]
+    }));
+
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
       {
-        role: "system",
-        content: `${scenario.system_prompt}\nSzenario: ${scenario.title}\nAntworte mit maximal 2-4 kurzen Saetzen. Kein Coaching-Feedback.`
-      },
-      ...(messages ?? []).map((message) => ({
-        role: message.role === "assistant" ? "assistant" : "user",
-        content: message.content
-      }))
-    ];
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents,
+          generationConfig: {
+            temperature: 0.75,
+            maxOutputTokens: 1024
+          }
+        })
+      }
+    );
 
-    const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openAiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: chatMessages,
-        temperature: 0.75,
-        max_tokens: 180
-      })
-    });
-
-    if (!openAiResponse.ok) throw new Error(await openAiResponse.text());
-    const completion = await openAiResponse.json();
-    const replyText = completion.choices?.[0]?.message?.content?.trim();
-    if (!replyText) throw new Error("OpenAI hat keine Antwort geliefert.");
+    if (!geminiResponse.ok) throw new Error(await geminiResponse.text());
+    const completion = await geminiResponse.json();
+    const replyText = (completion.candidates?.[0]?.content?.parts ?? [])
+      .map((part: { text?: string }) => part.text ?? "")
+      .join("")
+      .trim();
+    if (!replyText) throw new Error("Gemini hat keine Antwort geliefert.");
 
     const { error: insertError } = await admin
       .from("messages")

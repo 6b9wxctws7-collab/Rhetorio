@@ -6,7 +6,7 @@ und bekommt danach eine Auswertung. Läuft als Handy-App (iOS/Android) und als
 Web-App im Browser.
 
 **Technik dahinter:** Expo / React Native (App), Supabase (Login + Datenbank),
-OpenAI (die KI-Antworten). Vercel hostet die Web-Version.
+Google Gemini (die KI – Text und Stimme). Vercel hostet die Web-Version.
 
 ---
 
@@ -15,10 +15,10 @@ OpenAI (die KI-Antworten). Vercel hostet die Web-Version.
 Du brauchst drei eigene, kostenlose/kostenpflichtige Konten:
 
 1. **Supabase** – Login & Datenbank ([supabase.com](https://supabase.com))
-2. **OpenAI** – für die KI-Antworten ([platform.openai.com](https://platform.openai.com)) – hier fällt Nutzung nach Verbrauch an
+2. **Google AI Studio** – für die KI (Gemini) ([aistudio.google.com](https://aistudio.google.com)) – hier fällt Nutzung nach Verbrauch an
 3. **Vercel** – um die Web-Version online zu stellen ([vercel.com](https://vercel.com)) – optional
 
-> Die Werte unten (`https://dein-projekt.supabase.co`, `dein-anon-key`, `sk-...`)
+> Die Werte unten (`https://dein-projekt.supabase.co`, `dein-anon-key`, `dein-gemini-key`)
 > sind **Platzhalter**. Du ersetzt sie durch deine eigenen aus den jeweiligen Dashboards.
 
 ---
@@ -37,16 +37,16 @@ Du brauchst drei eigene, kostenlose/kostenpflichtige Konten:
 # Datenbank-Struktur anlegen
 supabase db push
 
-# Geheime Schlüssel für die Server-Funktionen hinterlegen
-supabase secrets set OPENAI_API_KEY=sk-...
-supabase secrets set OPENAI_MODEL=gpt-4o-mini
-supabase secrets set OPENAI_REALTIME_MODEL=gpt-realtime
-supabase secrets set OPENAI_REALTIME_VOICE=marin
+# Geheimen Schlüssel für die Server-Funktionen hinterlegen
+# (Gemini-Key aus Google AI Studio, https://aistudio.google.com/apikey)
+supabase secrets set GEMINI_API_KEY=dein-gemini-key
 
 # Funktionen hochladen
 supabase functions deploy generate-reply
 supabase functions deploy analyze-session
-supabase functions deploy create-realtime-session
+supabase functions deploy extract-image-text
+supabase functions deploy create-gemini-session
+supabase functions deploy voice-sample
 supabase functions deploy record-voice-usage
 ```
 
@@ -78,7 +78,7 @@ Supabase Dashboard → **Authentication → URL Configuration**:
 > Hinweis: Der `anon`-Key ist **absichtlich öffentlich** – er landet ohnehin im
 > Browser. Der Schutz der Daten läuft über die Datenbank-Regeln (Row Level
 > Security), die beim `supabase db push` automatisch mitkommen. Die *echten*
-> Geheimnisse (OpenAI-Key) stehen nur in den Supabase-Secrets, nie im Code.
+> Geheimnisse (Gemini-Key) stehen nur in den Supabase-Secrets, nie im Code.
 
 ---
 

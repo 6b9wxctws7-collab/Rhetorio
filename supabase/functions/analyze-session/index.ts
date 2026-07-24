@@ -28,10 +28,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openAiKey = Deno.env.get("OPENAI_API_KEY");
-    const model = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash";
 
-    if (!openAiKey) throw new Error("OPENAI_API_KEY ist nicht gesetzt.");
+    if (!geminiKey) throw new Error("GEMINI_API_KEY ist nicht gesetzt.");
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -106,23 +106,28 @@ Antworte ausschliesslich mit valider JSON im exakten Schema:
   "summary": string
 }`;
 
-    const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openAiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.35,
-        response_format: { type: "json_object" }
-      })
-    });
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.35,
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
 
-    if (!openAiResponse.ok) throw new Error(await openAiResponse.text());
-    const completion = await openAiResponse.json();
-    const parsed = JSON.parse(completion.choices?.[0]?.message?.content ?? "{}");
+    if (!geminiResponse.ok) throw new Error(await geminiResponse.text());
+    const completion = await geminiResponse.json();
+    const rawJson = (completion.candidates?.[0]?.content?.parts ?? [])
+      .map((part: { text?: string }) => part.text ?? "")
+      .join("")
+      .trim();
+    const parsed = JSON.parse(rawJson || "{}");
 
     const analysis = {
       session_id: body.session_id,
