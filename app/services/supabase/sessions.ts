@@ -86,34 +86,6 @@ export async function getPreviousScore(userId: string, excludeSessionId: string)
   return data?.score_total ?? null;
 }
 
-// Anzahl aufeinanderfolgender Trainingstage bis heute (oder gestern, damit
-// der Streak nicht schon morgens auf 0 springt).
-export async function getStreak(userId: string): Promise<number> {
-  const { data } = await supabase
-    .from("sessions")
-    .select("started_at")
-    .eq("user_id", userId)
-    .neq("status", "active")
-    .order("started_at", { ascending: false })
-    .limit(200);
-
-  if (!data?.length) return 0;
-
-  const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-  const trainedDays = new Set(data.map((row) => dayKey(new Date(row.started_at))));
-
-  const cursor = new Date();
-  // Heute noch nicht trainiert? Dann zählt der Streak ab gestern weiter.
-  if (!trainedDays.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-
-  let streak = 0;
-  while (trainedDays.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
 export async function listHistory(userId: string): Promise<HistoryItem[]> {
   const { data, error } = await supabase
     .from("sessions")

@@ -155,7 +155,19 @@ Antworte ausschliesslich mit valider JSON im exakten Schema:
       .update({ score_total: analysis.score_total, status: "completed" })
       .eq("id", body.session_id);
 
-    return Response.json(saved, { headers: corsHeaders });
+    // XP-Vergabe serverseitig (nicht vom Client manipulierbar): Der Score der
+    // Session wird als XP gutgeschrieben.
+    const { data: profileRow } = await admin
+      .from("profiles")
+      .select("xp")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+    await admin
+      .from("profiles")
+      .update({ xp: (profileRow?.xp ?? 0) + analysis.score_total })
+      .eq("id", userData.user.id);
+
+    return Response.json({ ...saved, xp_gained: analysis.score_total }, { headers: corsHeaders });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Unbekannter Fehler" },

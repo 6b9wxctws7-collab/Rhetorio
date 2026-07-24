@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { AppButton } from "../components/AppButton";
@@ -11,6 +11,7 @@ import { typography } from "../constants/typography";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { useAuth } from "../hooks/useAuth";
 import { RootStackParamList } from "../navigation/types";
+import { AchievementDef, checkAchievements } from "../services/gamification";
 import { canStartSession } from "../services/supabase/profiles";
 import { getPreviousScore } from "../services/supabase/sessions";
 import { scoreRows } from "../utils/calculateScores";
@@ -23,6 +24,18 @@ export function AnalysisScreen({ navigation, route }: Props) {
   const { user } = useAuth();
   const [previousScore, setPreviousScore] = useState<number | null>(null);
   const [freeInfo, setFreeInfo] = useState<{ used: number; limit: number } | null>(null);
+  const [newAchievements, setNewAchievements] = useState<AchievementDef[]>([]);
+  const achievementsChecked = useRef(false);
+
+  // Abzeichen-Check nur direkt nach einer frischen Session (nicht beim
+  // erneuten Ansehen alter Analysen) und nur einmal pro Screen-Besuch.
+  useEffect(() => {
+    if (!user?.id || !route.params.analysis || achievementsChecked.current) return;
+    achievementsChecked.current = true;
+    checkAchievements(user.id, route.params.analysis.score_total)
+      .then(setNewAchievements)
+      .catch(() => setNewAchievements([]));
+  }, [user?.id, route.params.analysis]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -59,6 +72,29 @@ export function AnalysisScreen({ navigation, route }: Props) {
         <Text style={[styles.delta, { color: delta > 0 ? colors.success : colors.warning }]}>
           {delta > 0 ? `▲ +${delta} seit deiner letzten Session` : `▼ ${delta} seit deiner letzten Session`}
         </Text>
+      )}
+
+      {route.params.analysis && (
+        <View style={styles.xpChip}>
+          <Text style={styles.xpText}>+{analysis.xp_gained ?? analysis.score_total} XP verdient</Text>
+        </View>
+      )}
+
+      {newAchievements.length > 0 && (
+        <View style={styles.achievementCard}>
+          <Text style={styles.achievementHeader}>
+            {newAchievements.length === 1 ? "Neues Abzeichen freigeschaltet!" : "Neue Abzeichen freigeschaltet!"}
+          </Text>
+          {newAchievements.map((achievement) => (
+            <View key={achievement.key} style={styles.achievementRow}>
+              <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
+              <View style={styles.achievementText}>
+                <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                <Text style={styles.achievementDescription}>{achievement.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
       )}
 
       <AppCard>
@@ -145,6 +181,47 @@ const styles = StyleSheet.create({
   delta: {
     textAlign: "center",
     fontWeight: "800"
+  },
+  xpChip: {
+    alignSelf: "center",
+    backgroundColor: colors.softSecondary,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6
+  },
+  xpText: {
+    color: colors.secondary,
+    fontWeight: "800"
+  },
+  achievementCard: {
+    backgroundColor: colors.softAccent,
+    borderRadius: 16,
+    padding: 14,
+    gap: 10
+  },
+  achievementHeader: {
+    color: colors.accent,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  achievementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  achievementEmoji: {
+    fontSize: 28
+  },
+  achievementText: {
+    flex: 1
+  },
+  achievementTitle: {
+    color: colors.primary,
+    fontWeight: "800"
+  },
+  achievementDescription: {
+    color: colors.muted,
+    fontSize: 13
   },
   cardTitle: {
     color: colors.primary,

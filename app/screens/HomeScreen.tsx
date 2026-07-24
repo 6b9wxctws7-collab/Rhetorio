@@ -8,12 +8,21 @@ import { AppCard } from "../components/AppCard";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { ScenarioCard } from "../components/ScenarioCard";
 import { StatCard } from "../components/StatCard";
+import { StreakCard } from "../components/StreakCard";
 import { colors } from "../constants/colors";
 import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
 import { useScenarios } from "../hooks/useScenarios";
 import { RootStackParamList } from "../navigation/types";
-import { getHomeStats, getStreak, HomeStats } from "../services/supabase/sessions";
+import {
+  DailyGoalInfo,
+  getDailyGoal,
+  getStreakInfo,
+  getXp,
+  levelForXp,
+  StreakInfo
+} from "../services/gamification";
+import { getHomeStats, HomeStats } from "../services/supabase/sessions";
 
 function dayOfYear(date: Date) {
   const start = new Date(date.getFullYear(), 0, 0);
@@ -32,9 +41,11 @@ export function HomeScreen() {
   const { user } = useAuth();
   const { scenarios } = useScenarios();
   const [stats, setStats] = useState<HomeStats | null>(null);
-  const [streak, setStreak] = useState(0);
+  const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
+  const [dailyGoal, setDailyGoal] = useState<DailyGoalInfo | null>(null);
+  const [xp, setXp] = useState(0);
   const quickStarts = scenarios.slice(0, 3);
-  const hasTrained = (stats?.sessionsThisWeek ?? 0) > 0 || stats?.bestScore != null;
+  const hasTrained = (stats?.sessionsThisWeek ?? 0) > 0 || stats?.bestScore != null || xp > 0;
 
   // Deterministic daily rotation so every user sees the same exercise on a
   // given day without any backend involvement.
@@ -49,9 +60,15 @@ export function HomeScreen() {
       getHomeStats(user.id)
         .then(setStats)
         .catch(() => setStats(null));
-      getStreak(user.id)
-        .then(setStreak)
-        .catch(() => setStreak(0));
+      getStreakInfo(user.id)
+        .then(setStreakInfo)
+        .catch(() => setStreakInfo(null));
+      getDailyGoal(user.id)
+        .then(setDailyGoal)
+        .catch(() => setDailyGoal(null));
+      getXp(user.id)
+        .then(setXp)
+        .catch(() => setXp(0));
     }, [user?.id])
   );
 
@@ -61,6 +78,10 @@ export function HomeScreen() {
         <Text style={styles.greeting}>{greetingForNow()}</Text>
         <Text style={styles.title}>Was möchtest du heute trainieren?</Text>
       </View>
+
+      {hasTrained && streakInfo && dailyGoal && (
+        <StreakCard streak={streakInfo} goal={dailyGoal} level={levelForXp(xp)} />
+      )}
 
       <AppCard>
         <Text style={styles.cardLabel}>Tagesübung</Text>
@@ -87,7 +108,6 @@ export function HomeScreen() {
       {/* Neue Nutzer sehen einen motivierenden Einstieg statt "0 / –". */}
       {hasTrained ? (
         <View style={styles.stats}>
-          <StatCard label="Tage-Streak" value={streak > 0 ? `${streak} 🔥` : "–"} />
           <StatCard label="Trainings diese Woche" value={stats?.sessionsThisWeek ?? 0} />
           <StatCard label="Bester Score" value={stats?.bestScore ?? "–"} />
         </View>

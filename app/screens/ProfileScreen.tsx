@@ -2,7 +2,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { LogOut } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { AppButton } from "../components/AppButton";
 import { AppCard } from "../components/AppCard";
@@ -13,6 +13,14 @@ import { trainingGoals } from "../constants/goals";
 import { typography } from "../constants/typography";
 import { useAuth } from "../hooks/useAuth";
 import { RootStackParamList } from "../navigation/types";
+import { achievementCatalog, getXp, levelForXp, listUnlockedAchievements } from "../services/gamification";
+import {
+  disableDailyReminder,
+  enableDailyReminder,
+  isReminderEnabled,
+  REMINDER_HOUR,
+  remindersSupported
+} from "../services/reminders";
 import { signOut } from "../services/supabase/auth";
 import { updateTrainingGoal } from "../services/supabase/profiles";
 import { defaultVoiceId, getVoicePreference, setVoicePreference } from "../services/voicePreference";
@@ -22,10 +30,42 @@ export function ProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const [voiceId, setVoiceId] = useState<string>(defaultVoiceId);
   const [savingGoal, setSavingGoal] = useState(false);
+  const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
+  const [xp, setXp] = useState(0);
+  const [reminderOn, setReminderOn] = useState(false);
 
   useEffect(() => {
     getVoicePreference().then(setVoiceId);
+    isReminderEnabled().then(setReminderOn);
   }, []);
+
+  async function toggleReminder(next: boolean) {
+    if (next) {
+      const granted = await enableDailyReminder();
+      setReminderOn(granted);
+      if (!granted) {
+        Alert.alert(
+          "Benachrichtigungen deaktiviert",
+          "Bitte erlaube RhetoCoach Benachrichtigungen in den Systemeinstellungen."
+        );
+      }
+    } else {
+      await disableDailyReminder();
+      setReminderOn(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.id) return;
+    listUnlockedAchievements(user.id)
+      .then(setUnlocked)
+      .catch(() => setUnlocked(new Set()));
+    getXp(user.id)
+      .then(setXp)
+      .catch(() => setXp(0));
+  }, [user?.id]);
+
+  const level = levelForXp(xp);
 
   async function pickVoice(nextVoiceId: string) {
     setVoiceId(nextVoiceId);
@@ -81,6 +121,27 @@ export function ProfileScreen() {
       </AppCard>
 
       <AppCard>
+        <Text style={styles.label}>Level & Abzeichen</Text>
+        <Text style={styles.levelLine}>
+          Level {level.level} · {level.title} · {xp} XP
+        </Text>
+        <View style={styles.badgeGrid}>
+          {achievementCatalog.map((achievement) => {
+            const isUnlocked = unlocked.has(achievement.key);
+            return (
+              <View key={achievement.key} style={[styles.badge, !isUnlocked && styles.badgeLocked]}>
+                <Text style={[styles.badgeEmoji, !isUnlocked && styles.badgeEmojiLocked]}>
+                  {isUnlocked ? achievement.emoji : "🔒"}
+                </Text>
+                <Text style={[styles.badgeTitle, !isUnlocked && styles.badgeTitleLocked]}>{achievement.title}</Text>
+                <Text style={styles.badgeDescription}>{achievement.description}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </AppCard>
+
+      <AppCard>
         <Text style={styles.label}>Verlauf</Text>
         <Text style={styles.body}>Sieh dir abgeschlossene Trainings, Scores und Tipps an.</Text>
         <AppButton title="Verlauf öffnen" onPress={() => navigation.navigate("History")} variant="secondary" />
@@ -94,6 +155,18 @@ export function ProfileScreen() {
           subtitle="Wird beim nächsten Voice-Training verwendet."
         />
       </AppCard>
+
+      {remindersSupported && (
+        <AppCard>
+          <View style={styles.reminderRow}>
+            <View style={styles.reminderText}>
+              <Text style={styles.label}>Tägliche Erinnerung</Text>
+              <Text style={styles.body}>Jeden Tag um {REMINDER_HOUR}:00 Uhr — damit dein Streak nicht reißt.</Text>
+            </View>
+            <Switch value={reminderOn} onValueChange={toggleReminder} />
+          </View>
+        </AppCard>
+      )}
 
       <AppCard>
         <Text style={styles.label}>Datenschutz</Text>
@@ -129,6 +202,54 @@ const styles = StyleSheet.create({
   label: {
     color: colors.muted,
     fontWeight: "700"
+  },
+  levelLine: {
+    color: colors.primary,
+    fontWeight: "800",
+    fontSize: 16
+  },
+  badgeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  badge: {
+    width: "47%",
+    backgroundColor: colors.softAccent,
+    borderRadius: 14,
+    padding: 12,
+    gap: 4
+  },
+  badgeLocked: {
+    backgroundColor: colors.background
+  },
+  badgeEmoji: {
+    fontSize: 24
+  },
+  badgeEmojiLocked: {
+    opacity: 0.6
+  },
+  badgeTitle: {
+    color: colors.primary,
+    fontWeight: "800",
+    fontSize: 13
+  },
+  badgeTitleLocked: {
+    color: colors.muted
+  },
+  badgeDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 16
+  },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  reminderText: {
+    flex: 1,
+    gap: 4
   },
   status: {
     color: colors.primary,

@@ -19,4 +19,6 @@ export type Analysis = {
   next_exercise: string;
   summary: string;
   created_at: string;
+  // Von analyze-session mitgeliefert: serverseitig gutgeschriebene XP.
+  xp_gained?: number;
 };
